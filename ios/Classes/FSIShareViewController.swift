@@ -243,7 +243,7 @@ open class FSIShareViewController: SLComposeServiceViewController {
             let filename = getFileName(from: url, type: .image)
             if let dst = containerURL()?.appendingPathComponent(filename) {
                 if copyFile(at: url, to: dst) {
-                    sharedMedia.append(SharingFile(value: dst.absoluteString, mimeType: url.mimeType(), thumbnail: nil, duration: nil, type: .image))
+                    sharedMedia.append(SharingFile(value: dst.path, mimeType: url.mimeType(), thumbnail: nil, duration: nil, type: .image))
                 }
             }
         } else if let img = data as? UIImage {
@@ -277,7 +277,7 @@ open class FSIShareViewController: SLComposeServiceViewController {
             let filename = getFileName(from: url, type: .file)
             if let dst = containerURL()?.appendingPathComponent(filename) {
                 if copyFile(at: url, to: dst) {
-                    sharedMedia.append(SharingFile(value: dst.absoluteString, mimeType: url.mimeType(), thumbnail: nil, duration: nil, type: .file))
+                    sharedMedia.append(SharingFile(value: dst.path, mimeType: url.mimeType(), thumbnail: nil, duration: nil, type: .file))
                 }
             }
         }
@@ -286,7 +286,7 @@ open class FSIShareViewController: SLComposeServiceViewController {
             if let dst = containerURL()?.appendingPathComponent(filename) {
                 do {
                     try raw.write(to: dst)
-                    sharedMedia.append(SharingFile(value: dst.absoluteString, mimeType: "application/octet-stream", thumbnail: nil, duration: nil, type: .file))
+                    sharedMedia.append(SharingFile(value: dst.path, mimeType: "application/octet-stream", thumbnail: nil, duration: nil, type: .file))
                 } catch {}
             }
         }
@@ -302,8 +302,7 @@ open class FSIShareViewController: SLComposeServiceViewController {
         do {
             if let d = image.pngData() {
                 try d.write(to: dst)
-                let decoded = dst.absoluteString.removingPercentEncoding ?? dst.absoluteString
-                return SharingFile(value: decoded, mimeType: "image/png", thumbnail: nil, duration: nil, type: .image)
+                return SharingFile(value: dst.path, mimeType: "image/png", thumbnail: nil, duration: nil, type: .image)
             }
         } catch {
             log("writeTempImage error: \(error)")
@@ -388,7 +387,7 @@ open class FSIShareViewController: SLComposeServiceViewController {
         let thumbnailPath = getThumbnailPath(for: forVideo)
         
         if FileManager.default.fileExists(atPath: thumbnailPath.path) {
-            return SharingFile(value: forVideo.absoluteString, mimeType: forVideo.mimeType(), thumbnail: thumbnailPath.absoluteString, duration: Int(duration), type: .video)
+            return SharingFile(value: forVideo.path, mimeType: forVideo.mimeType(), thumbnail: thumbnailPath.path, duration: Int(duration), type: .video)
         }
         
         let gen = AVAssetImageGenerator(asset: asset)
@@ -401,14 +400,14 @@ open class FSIShareViewController: SLComposeServiceViewController {
             let cg = try gen.copyCGImage(at: time, actualTime: nil)
             if let data = UIImage(cgImage: cg).jpegData(compressionQuality: 0.8) {
                 try data.write(to: thumbnailPath)
-                return SharingFile(value: forVideo.absoluteString, mimeType: forVideo.mimeType(), thumbnail: thumbnailPath.absoluteString, duration: Int(duration), type: .video)
+                return SharingFile(value: forVideo.path, mimeType: forVideo.mimeType(), thumbnail: thumbnailPath.path, duration: Int(duration), type: .video)
             }
         } catch {
             log("getSharedMediaFile thumbnail error: \(error)")
         }
         
         // fallback
-        return SharingFile(value: forVideo.absoluteString, mimeType: forVideo.mimeType(), thumbnail: nil, duration: Int(duration), type: .video)
+        return SharingFile(value: forVideo.path, mimeType: forVideo.mimeType(), thumbnail: nil, duration: Int(duration), type: .video)
     }
     
     private func getThumbnailPath(for url: URL) -> URL {
