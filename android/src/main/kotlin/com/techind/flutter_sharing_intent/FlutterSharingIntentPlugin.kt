@@ -109,7 +109,9 @@ class FlutterSharingIntentPlugin: FlutterPlugin, ActivityAware, MethodCallHandle
         (intent.type == null || intent.type?.startsWith("text") == true)
                 && (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) -> { // Sharing text
 
-          val value = getSharingText(intent) ?: getSharingUris(intent)
+          // A text/* share that carries a stream (.vcf, .txt, .csv, .ics …) is a file share;
+          // getSharingUris is null without EXTRA_STREAM, so plain text and links fall through.
+          val value = getSharingUris(intent) ?: getSharingText(intent)
           if (initial) initialSharing = value
           latestSharing = value
           Log.w(TAG,"text : handleIntent ==>> $value")
@@ -224,14 +226,12 @@ class FlutterSharingIntentPlugin: FlutterPlugin, ActivityAware, MethodCallHandle
     return if (value == null || !URLUtil.isValidUrl(value)) MediaType.TEXT.ordinal else MediaType.URL.ordinal;
   }
 
+  // Only called for EXTRA_STREAM items — files. A text/* file is still a file, not TEXT/URL.
   private fun getMediaType(path: String?): MediaType {
     val mimeType = URLConnection.guessContentTypeFromName(path)
     return when {
       mimeType?.startsWith("image") == true -> MediaType.IMAGE
       mimeType?.startsWith("video") == true -> MediaType.VIDEO
-      mimeType?.startsWith("text") == true -> MediaType.TEXT
-      mimeType?.startsWith("url") == true -> MediaType.URL
-      mimeType?.startsWith("web_search") == true -> MediaType.WEB_SEARCH
       else -> MediaType.FILE
     }
   }

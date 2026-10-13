@@ -161,6 +161,18 @@ open class FSIShareViewController: SLComposeServiceViewController {
                 continue
             }
             
+            // A contact (Contacts app: in-memory Data; Files: file URL). Before isText,
+            // which public.vcard conforms to and which would drop the Data.
+            if provider.isVCard {
+                let suggestedName = provider.suggestedName
+                provider.loadItem(forTypeIdentifier: UType.vCard, options: nil) { [weak self] data, error in
+                    defer { group.leave() }
+                    guard let self = self, error == nil else { self?.dismissWithError(); return }
+                    self.handleVCardItem(data: data, suggestedName: suggestedName, index: index, total: attachments.count)
+                }
+                continue
+            }
+            
             if provider.isURL {
                 provider.loadItem(forTypeIdentifier: UType.url, options: nil) { [weak self] data, error in
                     defer { group.leave() }
@@ -222,10 +234,34 @@ open class FSIShareViewController: SLComposeServiceViewController {
     private func handleTextItem(data: NSSecureCoding?, index: Int, total: Int) {
         if let s = data as? String {
             sharedMedia.append(SharingFile(value: s, thumbnail: nil, duration: nil, type: .text))
+        } else if let url = data as? URL, url.isFileURL {
+            // A text-conforming file from Files (.txt, .csv, .ics …): copy it into the
+            // app group like any other file — the host app cannot read the original.
+            handleFileItem(data: data, index: index, total: total)
         } else if let url = data as? URL {
             sharedMedia.append(SharingFile(value: url.absoluteString, thumbnail: nil, duration: nil, type: .url))
         }
         
+    }
+    
+    private func handleVCardItem(data: NSSecureCoding?, suggestedName: String?, index: Int, total: Int) {
+        if data is URL {
+            handleFileItem(data: data, index: index, total: total)
+        } else if let raw = data as? Data {
+            // handleFileItem would name Data "File_<UUID>"; keep a .vcf name so the
+            // host app can recognise the contact file.
+            var name = (suggestedName ?? "").replacingOccurrences(of: "/", with: "_")
+            if name.isEmpty { name = "Contact" }
+            if !name.lowercased().hasSuffix(".vcf") { name += ".vcf" }
+            if let dst = containerURL()?.appendingPathComponent(name) {
+                do {
+                    try raw.write(to: dst)
+                    sharedMedia.append(SharingFile(value: dst.path, mimeType: "text/vcard", thumbnail: nil, duration: nil, type: .file))
+                } catch {
+                    log("vCard write error: \(error)")
+                }
+            }
+        }
     }
     
     private func handleUrlItem(data: NSSecureCoding?, index: Int, total: Int) {
@@ -476,6 +512,7 @@ extension NSItemProvider {
     }
     var isURL: Bool { return hasItemConformingToTypeIdentifier(UType.url) }
     var isFile: Bool { return hasItemConformingToTypeIdentifier(UType.fileURL) }
+    var isVCard: Bool { return hasItemConformingToTypeIdentifier(UType.vCard) }
     var isData:Bool { return hasItemConformingToTypeIdentifier(UType.data) }
     var isItem: Bool { hasItemConformingToTypeIdentifier(UType.item) }
 
@@ -560,6 +597,14 @@ enum UType {
             return UTType.fileURL.identifier
         } else {
             return kUTTypeFileURL as String
+        }
+    }
+    
+    static var vCard: String {
+        if #available(iOS 14.0, *) {
+            return UTType.vCard.identifier
+        } else {
+            return kUTTypeVCard as String
         }
     }
     
